@@ -18,7 +18,6 @@ import matplotlib.pyplot as plt
 import time
 from generate_msg_mod_modified import generate_msg_mod_modified
 
-
 """
 M = Number of columns in a section 
 L = Number of section
@@ -236,41 +235,38 @@ for e in range(np.size(EbN0_dB)):
     y_val = np.matmul(A, beta_val) + np.random.normal( size = (n,cols),scale= math.sqrt(awgn_var)) #tf.sqrt(awgn_var)*rng.randn(n)
 
 
-    #####...............BUILD LISTA................#####
-    T, initial_lambda = 6, 0.1
+    #####...............BUILD TISTA................#####
+
+    T = 5  # Number of layers
+    initial_gamma = np.array(0.1).astype(np.float32)
+    gamma0_ = tf.Variable(initial_gamma,name='gamma_0')  #to make it learnable
+
     # creating placeholders, which will hold dataset later.
     x_ = tf.compat.v1.placeholder( tf.float32,(L*M,None),name='x' )
     y_ = tf.compat.v1.placeholder( tf.float32,(n,None),name='y' )
 
     eta = simple_soft_threshold #creating an object
 
-    B = A.T / (1.01 * la.norm(A,2)**2) #(This is according to original code, not sure why)
-
-    # All of these below are tf, which means they will be stored as graphs and will run later. 
-    # B and S are the trainable parameters
-    B_ = tf.Variable(B,dtype=tf.float32,name='B_0') #creating tf.variable to make it a trainable parameter. 
-    S_ = tf.Variable(np.identity(L*M) - np.matmul(B, A),dtype=tf.float32,name='S_0' )
-
-    By_ = tf.matmul(B_,y_)  # This will be the input for the shrinkage function in the first iteration
+    W = np.matmul(A.T, la.inv(np.matmul(A,A.T)))
+    W_ = tf.constant(W,name='W',dtype = tf.float32)
+    gWy_ = tf.matmul(W_,gamma0_*y_)  # This will be the input for the shrinkage function in the first iteration
 
     # creating layers 
     layers = []
-    layers.append( ('Linear',By_,None) )   
-    initial_lambda = np.array(initial_lambda).astype(np.float32)
-    lam0_ = tf.Variable(initial_lambda,name='lam_0')  #to make it learnable
+    layers.append( ('Linear',gWy_,None) )   
 
-    xhat_ = eta( By_, lam0_) #first itertion and xhat_0 is all 0s
-    layers.append( ('LISTA T=1',xhat_, (lam0_,) ) )
+    xhat_ = eta( gWy_, gamma0_) #first itertion and xhat_0 is all 0s
+    layers.append( ('LISTA T=1',xhat_, (gamma0_,) ) )
 
     for t in range(1,T):
-        lam_ = tf.Variable( initial_lambda,name='lam_{0}'.format(t) ) # using the same lambda
-        xhat_ = eta( tf.matmul(S_,xhat_) + By_, lam_ )  # will be stored as graphs which will run during a session later.   
-        layers.append( ('LISTA T='+str(t+1),xhat_,(lam_,)) ) # creating layers (xhat_ is an operation)         
+        gamma_ = tf.Variable( initial_gamma,name='gamma_{0}'.format(t) ) # using the same gamma
+        xhat_ = eta( tf.matmul(S_,xhat_) + By_, gamma_ )  # will be stored as graphs which will run during a session later.   
+        layers.append( ('LISTA T='+str(t+1),xhat_,(gamma_,)) ) # creating layers (xhat_ is an operation)         
 
     '''
     print statements to check the layers
     print(*layers , sep = "\n")
-    print(lam0_)
+    print(gamma0_)
     for name,xhat_,var_list in layers:
           print(xhat_)
     '''
@@ -326,7 +322,6 @@ for e in range(np.size(EbN0_dB)):
         if name in done:
             print('Already did ' + name + '. Skipping.')
             continue
-        
         if len(var_list):
             describe_var_list = 'extending ' + ','.join([v.name for v in var_list])
         else:
@@ -359,4 +354,4 @@ for e in range(np.size(EbN0_dB)):
         state['done'] = done
         state['log'] = log
         save_trainable_vars(sess,'LISTA_SPARC_L{T}_EN{E}.npz'.format(T=T,E=EbN0_dB[e]),**state)
-        
+
