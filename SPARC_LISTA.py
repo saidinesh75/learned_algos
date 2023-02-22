@@ -10,14 +10,14 @@ tf.disable_v2_behavior() #compatibility
 rng = np.random.RandomState(seed=None)
 tf.set_random_seed(1)
 
+import numpy as np
+import tensorflow.compat.v1 as tf
+np.random.seed(1)
+tf.set_random_seed(1)
 import math
 import sys
 import numpy.linalg as la
-
-import matplotlib.pyplot as plt
-import time
-from generate_msg_mod_modified import generate_msg_mod_modified
-
+BASE_PATH = "/home/saidinesh/learned_algos/Outputs_learned_algos" # path to save the npz files
 
 """
 M = Number of columns in a section 
@@ -161,7 +161,7 @@ def save_trainable_vars(sess,filename,**kwargs):
     for v in tf.trainable_variables():
         save[str(v.name)] = sess.run(v)
     save.update(kwargs)
-    np.savez(filename,**save)
+    np.savez(os.path.join(BASE_PATH, filename),**save)
 
 def load_trainable_vars(sess,filename):
     """load a .npz archive and assign the value of each loaded
@@ -172,7 +172,8 @@ def load_trainable_vars(sess,filename):
     other={}
     try:
         tv=dict([ (str(v.name),v) for v in tf.trainable_variables() ])
-        for k,d in np.load(filename).items():
+        # for k,d in np.load(filename).items():
+        for k,d in np.load(os.path.join(BASE_PATH, filename)).items():
             if k in tv:
                 print('restoring ' + k)
                 sess.run(tf.assign( tv[k], d) )
@@ -358,5 +359,4 @@ for e in range(np.size(EbN0_dB)):
 
         state['done'] = done
         state['log'] = log
-        save_trainable_vars(sess,'LISTA_SPARC_L{T}_EN{E}.npz'.format(T=T,E=EbN0_dB[e]),**state)
-        
+        save_trainable_vars(sess,'LISTA_SPARC_L{T}_EN{E}.npz'.format(T=T,E=EbN0_dB[e]),**state)    
